@@ -8,6 +8,7 @@
 #define  GLOBALMEM_SIZE   0x1000//字符驱动分配一个4KB的内存空间，在驱动中针对这片内存进行读写控制定位操作
 #define  MEM_CLEAR        0x1
 #define  GLOBALMEM_MAJOR 230//主设备号
+#define DEVICE_NUM       10
 
 static  int  globalmem_major = GLOBALMEM_MAJOR;
 module_param(globalmem_major, int, S_IRUGO);//传参给内核空间
@@ -21,7 +22,12 @@ struct   globalmem_dev  *globalmem_devp;
 
 static int globalmem_open(struct inode *inode, struct file *filp)
 {
-	filp->private_data = globalmem_devp;
+//	filp->private_data = globalmem_devp;
+	/*当inode结点指向一个字符设备文件时，i_cdev位指向inode结构的一个指针*/
+	/*container_of通过结构体成员的指针找到对应节点的结构体指针*/
+	/*根据结构体成员获得这个结构体的首地址*/
+	struct  globalmem_dev *dev = container_of(inode->i_cdev,struct globalmem_dev, cdev);
+	filp->private_data = dev;
 	return 0;
 }
 
@@ -147,7 +153,7 @@ static  void  globalmem_setup_cdev(struct  globalmem_dev  *dev, int  index)
 	//devno是合并过的设备号，err用于存储cdev_add的返回值
 	cdev_init(&dev->cdev, &globalmem_fops);//初始化cdev结构体，并且关联globalmem_fops结构体
 	dev->cdev.owner = THIS_MODULE;//设置所属模块
-	err = cdev_add(&dev->cdev, devno, 1);//注册成功返回值是0
+	err = cdev_add(&dev->cdev, devno, 1);//注册成功返回值是0,第三个参数该类设备的设备个数
 	if(err){
 		printk(KERN_NOTICE"Error %d adding globermem%d",err, index);
 	}	
@@ -157,12 +163,15 @@ static  void  globalmem_setup_cdev(struct  globalmem_dev  *dev, int  index)
 static   int  __init  globalmem_init(void)
 {
 	int  ret;
+	int i;
 	dev_t  devno  =  MKDEV(globalmem_major, 0);
 
 	if(globalmem_major){
-		ret  =  register_chrdev_region(devno, 1, "globalmem");//静态分配设备号
+	//	ret  =  register_chrdev_region(devno, 1, "globalmem");//静态分配设备号
+		ret = register_chrdev_region(devno, DEVICE_NUM,"globalmem");
 	}else{
-		ret  =  alloc_chrdev_region(&devno, 0, 1, "globalmem");//动态分配设备号
+      	//	ret  =  alloc_chrdev_region(&devno, 0, 1, "globalmem");//动态分配设备号
+		ret = alloc_chrdev_region(&devno, 0, DEVICE_NUM, "globalmem");
 	globalmem_major = MAJOR(devno);//提取高12位主设备号
 	}	
 	/*设备号分配失败会返回负值*/
@@ -175,20 +184,28 @@ static   int  __init  globalmem_init(void)
 	ret  = -ENOMEM;
 	goto fail_malloc;
 	}
-	globalmem_setup_cdev(globalmem_devp, 0);
+	for(i = 0; i< DEVICE_NUM; i++)
+		globalmem_setup_cdev(globalmem_devp + i, i);
+//	globalmem_setup_cdev(globalmem_devp, 0);
 	return  0;
 	
 	fail_malloc:
-	unregister_chrdev_region(devno, 1);
+	unregister_chrdev_region(devno, DEVICE_NUM);	
+//	fail_malloc:
+//	unregister_chrdev_region(devno, 1);
 	return  ret;
 }
 module_init(globalmem_init);
 
 static void __exit globalmem_exit(void)
 {
-	cdev_del(&globalmem_devp->cdev);
+	int i;
+	for(i = 0; i < DEVICE_NUM; i++)
+		cdev_del(&(globalmem_devp + i)->cdev);
+//	cdev_del(&globalmem_devp->cdev);
 	kfree(globalmem_devp);
-	unregister_chrdev_region(MKDEV(globalmem_major,0), 1);
+	unregister_chrdev_region(MKDEV(globalmem_major,0), DEVICE_NUM);
+//	unregister_chrdev_region(MKDEV(globalmem_major,0), 1);
 }
 module_exit(globalmem_exit);
 
