@@ -12,6 +12,7 @@
 
 
 //wjxu test 
+//wjxu test2
 static  int  globalmem_major = GLOBALMEM_MAJOR;
 module_param(globalmem_major, int, S_IRUGO);//传参给内核空间
 
