@@ -10,6 +10,8 @@
 #define  GLOBALMEM_MAJOR 230//主设备号
 #define DEVICE_NUM       10
 
+
+//wjxu test 
 static  int  globalmem_major = GLOBALMEM_MAJOR;
 module_param(globalmem_major, int, S_IRUGO);//传参给内核空间
 
